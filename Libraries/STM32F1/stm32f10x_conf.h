@@ -12,6 +12,7 @@
 #include <stm32f10x_sdio.h>
 #include <stm32f10x_spi.h>
 #include <stm32f10x_tim.h>
+#include <stm32f10x_flash.h>
 #include <misc.h>
 
 

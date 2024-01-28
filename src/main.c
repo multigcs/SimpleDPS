@@ -8,11 +8,46 @@
 
 __IO float volt_set = 3.3;
 __IO float amp_set = 0.5;
+__IO float volt_preset = 3.3;
+__IO float amp_preset = 0.5;
 __IO uint8_t power = 0;
 
 __IO int8_t encoder_last = 0;
 __IO int8_t encoder_val = 0;
 __IO uint8_t encoder_sw = 0;
+
+uint8_t setmode = 0;
+uint8_t flash_update = 0;
+
+
+#define BANK1_WRITE_START_ADDR  ((uint32_t)0x800cc00)
+uint32_t fidnum = 0x3210ABC1;
+
+void flash_read() {
+    uint32_t Address = BANK1_WRITE_START_ADDR;
+    if ((*(__IO uint32_t*) Address) == fidnum) {
+        uint32_t i_volt_set = (*(__IO uint32_t*) (Address + 4));
+        uint32_t i_amp_set = (*(__IO uint32_t*) (Address + 8));
+        volt_set = i_volt_set / 10.0;
+        amp_set = i_amp_set / 10.0;
+        volt_preset = volt_set;
+        amp_preset = amp_set;
+    }
+}
+
+void flash_write() {
+    uint32_t Address = BANK1_WRITE_START_ADDR;
+    FLASH_UnlockBank1();
+    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+    FLASH_ErasePage(BANK1_WRITE_START_ADDR);
+    FLASH_ProgramWord(Address, fidnum);
+    uint32_t i_volt_set = volt_set * 10.0;
+    uint32_t i_amp_set = amp_set * 10.0;
+    FLASH_ProgramWord((Address + 4), i_volt_set);
+    FLASH_ProgramWord((Address + 8), i_amp_set);
+    FLASH_LockBank1();
+}
+
 
 // Fix Timer for Timeline-Moves and Encoder-Read
 void TIM3_IRQHandler() {
@@ -38,6 +73,38 @@ void TIM3_IRQHandler() {
 				encoder_val--;
 			}
 		}
+
+        // power button
+		if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_4) == 0) {
+			power = 1 - power;
+			while (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_4) == 0);
+		}
+        // upper button
+		if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_3) == 0) {
+			setmode = 0;
+		}
+        // lower button
+		if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_1) == 0) {
+			setmode = 1;
+		}
+        // encoder button
+		if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_5) == 0) {
+            if (volt_set != volt_preset || amp_set != amp_preset) {
+                flash_update = 1;
+            }
+			volt_set = volt_preset;
+            amp_set = amp_preset;
+		}
+        // set button
+		if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_2) == 0) {
+            if (volt_set != volt_preset || amp_set != amp_preset) {
+                flash_update = 1;
+            }
+			volt_set = volt_preset;
+            amp_set = amp_preset;
+		}
+
+
     }
 }
 
@@ -111,10 +178,12 @@ void USART1_IRQHandler(void) {
 
 
 int main(void) {
+	char tmp_str[24];
+	uint8_t update = 0;
+	uint8_t stat = 0;
 
 	systemInit();
 	Adc1Init();
-
 
 	serialInit();
 	NVIC_InitTypeDef NVIC_InitStructure;
@@ -186,25 +255,10 @@ int main(void) {
 	// Display
 	ili9163Init();
 
-
-	char tmp_str[24];
-	uint8_t setmode = 0;
-	uint8_t update = 0;
-	uint8_t stat = 0;
+    flash_read();
+    setmode = 0;
 
 	while (1) {
-
-		// Buttons
-		if (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_4) == 0) {
-			power = 1 - power;
-			while (GPIO_ReadInputDataBit(GPIOB, GPIO_Pin_4) == 0);
-		}
-		if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_3) == 0) {
-			setmode = 0;
-		}
-		if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_1) == 0) {
-			setmode = 1;
-		}
 
 		// DACs
 		if (power == 1) {
@@ -234,6 +288,12 @@ int main(void) {
 			amp_out = 0.0;
 		}
 
+
+        if (flash_update == 1) {
+            flash_update = 0;
+            flash_write();
+        }
+
 		if (stat == 1) {
 			ili9163Puts(1, 120, 1, BLUE, "*");
 			stat = 0;
@@ -245,21 +305,31 @@ int main(void) {
 
 		// Display
         if (setmode == 0) {
-            ili9163Puts(2, 95, 1, BLUE, "  ");
-            ili9163Puts(2, 35, 1, BLUE, ">");
+            ili9163Puts(2, 79, 2, MAGENTA, " ");
+            if (volt_preset != volt_set && stat == 0) {
+                ili9163Puts(2, 19, 2, YELLOW, " ");
+            } else {
+                ili9163Puts(2, 19, 2, YELLOW, ">");
+            }
             if (encoder_val != 0) {
-                volt_set += (float)encoder_val / 20;
+                volt_preset += (float)encoder_val / 20;
                 encoder_val = 0;
                 update = 1;
             }
+            amp_preset = amp_set;
         } else {
-            ili9163Puts(2, 35, 1, BLUE, "  ");
-            ili9163Puts(2, 95, 1, BLUE, ">");
+            ili9163Puts(2, 19, 2, YELLOW, " ");
+            if (amp_preset != amp_set && stat == 0) {
+                ili9163Puts(2, 79, 2, MAGENTA, " ");
+            } else {
+                ili9163Puts(2, 79, 2, MAGENTA, ">");
+            }
             if (encoder_val != 0) {
-                amp_set += (float)encoder_val / 20;
+                amp_preset += (float)encoder_val / 20;
                 encoder_val = 0;
                 update = 2;
             }
+            volt_preset = volt_set;
         }
 		if (update == 0) {
 			update = 1;
@@ -278,18 +348,18 @@ int main(void) {
 			}
 		} else if (update == 1) {
 			update = 2;
-			sprintf(tmp_str, "Voltage: (%02.2fV)  ", volt_set);
-			ili9163Puts(2, 20, 1, YELLOW, tmp_str);
+			sprintf(tmp_str, "%02.2fV   ", volt_preset);
+			ili9163Puts(20, 19, 2, YELLOW, tmp_str);
 			sprintf(tmp_str, "  %02.2fV", volt_out);
 			n = ili9163Lens(3, tmp_str);
-			ili9163Puts(126 - n, 35, 3, YELLOW, tmp_str);
+			ili9163Puts(126 - n, 40, 3, YELLOW, tmp_str);
 		} else {
 			update = 0;
-			sprintf(tmp_str, "Ampere: (%02.2fA)  ", amp_set);
-			ili9163Puts(2, 80, 1, MAGENTA, tmp_str);
+			sprintf(tmp_str, "%02.2fA   ", amp_preset);
+			ili9163Puts(20, 79, 2, MAGENTA, tmp_str);
 			sprintf(tmp_str, "  %02.2fA", amp_out);
 			n = ili9163Lens(3, tmp_str);
-			ili9163Puts(126 - n, 95, 3, MAGENTA, tmp_str);
+			ili9163Puts(126 - n, 100, 3, MAGENTA, tmp_str);
 		}
 
 
