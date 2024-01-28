@@ -6,6 +6,8 @@
 #include <adc.h>
 #include <ili9163.h>
 
+#define TYPE 1
+
 __IO float volt_set = 3.3;
 __IO float amp_set = 0.5;
 __IO float volt_preset = 3.3;
@@ -262,8 +264,13 @@ int main(void) {
 
 		// DACs
 		if (power == 1) {
-			DAC_SetChannel1Data(DAC_Align_12b_R, (uint16_t)(volt_set / 0.01308));
-			DAC_SetChannel2Data(DAC_Align_12b_R, (uint16_t)(amp_set * 615) + 250);
+            if (TYPE == 1) {
+                DAC_SetChannel1Data(DAC_Align_12b_R, (uint16_t)((volt_set - 1.7) / 0.01308));
+                DAC_SetChannel2Data(DAC_Align_12b_R, (uint16_t)(amp_set * 615) + 250);
+            } else {
+                DAC_SetChannel1Data(DAC_Align_12b_R, (uint16_t)(volt_set / 0.01308));
+                DAC_SetChannel2Data(DAC_Align_12b_R, (uint16_t)(amp_set * 615) + 250);
+            }
 			GPIO_WriteBit(GPIOB, GPIO_Pin_11, Bit_RESET);
 		} else {
 			DAC_SetChannel1Data(DAC_Align_12b_R, 0);
