@@ -1,7 +1,7 @@
 
 BUILDDIR         := build/$(TARGET)
 OPTLVL           := s
-TOOLCHAIN_PREFIX := /opt/gcc-arm-none-eabi-7-2017-q4-major/bin/arm-none-eabi
+TOOLCHAIN_PREFIX := arm-none-eabi
 OPENOCDCFG        = target/stm32f1x.cfg
 AS                = $(TOOLCHAIN_PREFIX)-as
 AR                = $(TOOLCHAIN_PREFIX)-ar

@@ -6,14 +6,9 @@
 #include <adc.h>
 #include <ili9163.h>
 
-/*
-*/
-
-
-__IO float volt_set = 12.0;
+__IO float volt_set = 3.3;
 __IO float amp_set = 0.5;
 __IO uint8_t power = 0;
-
 
 __IO int8_t encoder_last = 0;
 __IO int8_t encoder_val = 0;
@@ -247,7 +242,25 @@ int main(void) {
 			stat = 1;
 		}
 
+
 		// Display
+        if (setmode == 0) {
+            ili9163Puts(2, 95, 1, BLUE, "  ");
+            ili9163Puts(2, 35, 1, BLUE, ">");
+            if (encoder_val != 0) {
+                volt_set += (float)encoder_val / 20;
+                encoder_val = 0;
+                update = 1;
+            }
+        } else {
+            ili9163Puts(2, 35, 1, BLUE, "  ");
+            ili9163Puts(2, 95, 1, BLUE, ">");
+            if (encoder_val != 0) {
+                amp_set += (float)encoder_val / 20;
+                encoder_val = 0;
+                update = 2;
+            }
+        }
 		if (update == 0) {
 			update = 1;
 			if (power == 1) {
@@ -270,15 +283,6 @@ int main(void) {
 			sprintf(tmp_str, "  %02.2fV", volt_out);
 			n = ili9163Lens(3, tmp_str);
 			ili9163Puts(126 - n, 35, 3, YELLOW, tmp_str);
-			if (setmode == 0) {
-				ili9163Puts(2, 35, 1, BLUE, ">");
-				if (encoder_val != 0) {
-					volt_set += (float)encoder_val / 20;
-					encoder_val = 0;
-				}
-			} else {
-				ili9163Puts(2, 35, 1, BLUE, "  ");
-			}
 		} else {
 			update = 0;
 			sprintf(tmp_str, "Ampere: (%02.2fA)  ", amp_set);
@@ -286,16 +290,9 @@ int main(void) {
 			sprintf(tmp_str, "  %02.2fA", amp_out);
 			n = ili9163Lens(3, tmp_str);
 			ili9163Puts(126 - n, 95, 3, MAGENTA, tmp_str);
-			if (setmode == 1) {
-				ili9163Puts(2, 95, 1, BLUE, ">");
-				if (encoder_val != 0) {
-					amp_set += (float)encoder_val / 20;
-					encoder_val = 0;
-				}
-			} else {
-				ili9163Puts(2, 95, 1, BLUE, "  ");
-			}
 		}
+
+
 
 		printf("#%i", power);
 		printf(";%02.2f", volt_in);
